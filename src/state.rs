@@ -1,17 +1,13 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use crate::models::task::Task;
-use uuid::Uuid;
+use sqlx::SqlitePool;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub tasks: Arc<Mutex<HashMap<Uuid, Task>>>,
+    pub db: SqlitePool,
 }
 
 impl AppState {
-    pub fn new() -> Self {
-        Self {
-            tasks: Arc::new(Mutex::new(HashMap::new())),
-        }
+    pub async fn new(database_url: &str) -> Result<Self, sqlx::Error> {
+        let pool = SqlitePool::connect(database_url).await?;
+        Ok(Self { db: pool })
     }
 }

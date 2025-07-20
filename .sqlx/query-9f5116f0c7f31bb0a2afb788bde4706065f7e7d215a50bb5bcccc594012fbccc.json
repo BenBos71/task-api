@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE tasks SET title = ?, completed = ? WHERE id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "9f5116f0c7f31bb0a2afb788bde4706065f7e7d215a50bb5bcccc594012fbccc"
+}

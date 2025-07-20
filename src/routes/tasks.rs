@@ -5,7 +5,7 @@ use axum::{
     Router,
     routing::{get},
 };
-use crate::models::task::{Task, CreateTask, PatchTask, TaskFilter};
+use crate::models::task::{Task, CreateTask, PatchTask, TaskFilter, Pagination};
 use crate::state::AppState;
 use crate::errors::AppError;
 use chrono::Utc;
@@ -21,31 +21,53 @@ pub fn task_routes(state: AppState) -> Router {
 async fn get_tasks(
     State(state): State<AppState>,
     Query(filter): Query<TaskFilter>,
+    Query(pagination): Query<Pagination>,
 ) -> Result<impl IntoResponse, AppError> {
-    let tasks = state.tasks.lock().map_err(|_| AppError::Internal("Lock poisoned".into()))?;
+    let mut query = String::from(
+        "SELECT id, title, completed, created_at FROM tasks"
+    );
 
-    let filtered_tasks: Vec<Task> = tasks
-        .values()
-        .cloned()
-        .filter(|task| {
-            match filter.completed {
-                Some(wanted) => task.completed == wanted,
-                None => true, // no filter applied
-            }
-        })
-        .collect();
+    if let Some(completed) = filter.completed {
+        query.push_str(" WHERE completed = ");
+        query.push_str(if completed { "1" } else { "0" });
+    }
 
-    Ok(Json(filtered_tasks))
+    query.push_str(" ORDER BY created_at DESC");
+
+    if let Some(limit) = pagination.limit {
+        query.push_str(&format!(" LIMIT {}", limit));
+    }
+    if let Some(offset) = pagination.offset {
+        query.push_str(&format!(" OFFSET {}", offset));
+    }
+
+    let tasks = sqlx::query_as::<_, Task>(&query)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(Json(tasks))
 }
 
 async fn get_task(
     State(state): State<AppState>,
     Path(task_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    let tasks = state.tasks.lock().map_err(|_| AppError::Internal("Lock poisoned".into()))?;
+    let task = sqlx::query_as!(
+        Task,
+        r#"
+        SELECT id, title, completed, created_at
+        FROM tasks
+        WHERE id = ?
+        "#,
+        task_id.to_string()
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    match tasks.get(&task_id) {
-        Some(task) => Ok(Json(task.clone())),
+    match task {
+        Some(task) => Ok(Json(task)),
         None => Err(AppError::NotFound("Task not found".into())),
     }
 }
@@ -54,12 +76,18 @@ async fn delete_task(
     State(state): State<AppState>,
     Path(task_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut tasks = state.tasks.lock().map_err(|_| AppError::Internal("Lock poisoned".into()))?;
+    let result = sqlx::query!(
+        "DELETE FROM tasks WHERE id = ?",
+        task_id.to_string()
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    if tasks.remove(&task_id).is_some() {
-        Ok(StatusCode::NO_CONTENT)
-    } else {
+    if result.rows_affected() == 0 {
         Err(AppError::NotFound("Task not found".into()))
+    } else {
+        Ok(StatusCode::NO_CONTENT)
     }
 }
 
@@ -78,8 +106,19 @@ async fn create_task(
         created_at: Utc::now(),
     };
 
-    let mut tasks = state.tasks.lock().map_err(|_| AppError::Internal("Lock poisoned".into()))?;
-    tasks.insert(task.id, task.clone());
+    sqlx::query!(
+        r#"
+        INSERT INTO tasks (id, title, completed, created_at)
+        VALUES (?, ?, ?, ?)
+        "#,
+        task.id.to_string(),
+        task.title,
+        task.completed,
+        task.created_at
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?;
 
     Ok((StatusCode::CREATED, Json(task)))
 }
@@ -89,9 +128,22 @@ async fn patch_task(
     Path(task_id): Path<Uuid>,
     Json(payload): Json<PatchTask>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut tasks = state.tasks.lock().map_err(|_| AppError::Internal("Lock poisoned".into()))?;
+    let task = sqlx::query_as!(
+        Task,
+        r#"
+        SELECT id, title, completed, created_at
+        FROM tasks
+        WHERE id = ?
+        "#,
+        task_id.to_string()
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let task = tasks.get_mut(&task_id).ok_or_else(|| AppError::NotFound("Task not found".into()))?;
+    let Some(mut task) = task else {
+        return Err(AppError::NotFound("Task not found".into()));
+    };
 
     if let Some(title) = payload.title {
         if title.trim().is_empty() {
@@ -104,5 +156,17 @@ async fn patch_task(
         task.completed = completed;
     }
 
-    Ok(Json(task.clone()))
+    sqlx::query!(
+        r#"
+        UPDATE tasks SET title = ?, completed = ? WHERE id = ?
+        "#,
+        task.title,
+        task.completed,
+        task.id.to_string()
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(Json(task))
 }

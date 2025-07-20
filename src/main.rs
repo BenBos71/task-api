@@ -10,13 +10,11 @@ use crate::state::AppState;
 use crate::routes::tasks::task_routes;
 
 #[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt()
-        .with_target(false)
-        .with_env_filter("info")
-        .init();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt().init();
 
-    let state = AppState::new(); // helper constructor we'll add
+    let database_url = "sqlite://tasks.db";
+    let state = AppState::new(database_url).await?;
 
     let app = task_routes(state);
 
@@ -25,9 +23,9 @@ async fn main() {
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
-        .await
-        .unwrap();
+        .await?;
+
+    Ok(())
 }
 
-// curl http://localhost:3000/health
 // curl http://localhost:3000/tasks
