@@ -8,7 +8,7 @@ use axum::{
 use crate::models::task::{Task, CreateTask, PatchTask, TaskFilter, Pagination};
 use crate::state::AppState;
 use crate::errors::AppError;
-use chrono::Utc;
+use chrono::{Utc};
 use uuid::Uuid;
 
 pub fn task_routes(state: AppState) -> Router {
@@ -56,11 +56,15 @@ async fn get_task(
     let task = sqlx::query_as!(
         Task,
         r#"
-        SELECT id, title, completed, created_at
+        SELECT
+            id as "id: Uuid",
+            title,
+            completed,
+            created_at as "created_at: chrono::DateTime<Utc>"
         FROM tasks
         WHERE id = ?
         "#,
-        task_id.to_string()
+        task_id
     )
     .fetch_optional(&state.db)
     .await
@@ -76,9 +80,10 @@ async fn delete_task(
     State(state): State<AppState>,
     Path(task_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let task_id_str = task_id.to_string();
     let result = sqlx::query!(
         "DELETE FROM tasks WHERE id = ?",
-        task_id.to_string()
+        task_id_str
     )
     .execute(&state.db)
     .await
@@ -111,7 +116,7 @@ async fn create_task(
         INSERT INTO tasks (id, title, completed, created_at)
         VALUES (?, ?, ?, ?)
         "#,
-        task.id.to_string(),
+        task.id,
         task.title,
         task.completed,
         task.created_at
@@ -131,11 +136,11 @@ async fn patch_task(
     let task = sqlx::query_as!(
         Task,
         r#"
-        SELECT id, title, completed, created_at
+        SELECT id as "id: Uuid", title, completed, created_at as "created_at: chrono::DateTime<Utc>"
         FROM tasks
         WHERE id = ?
         "#,
-        task_id.to_string()
+        task_id
     )
     .fetch_optional(&state.db)
     .await
@@ -162,7 +167,7 @@ async fn patch_task(
         "#,
         task.title,
         task.completed,
-        task.id.to_string()
+        task.id
     )
     .execute(&state.db)
     .await

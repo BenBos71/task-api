@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-native-tls", "macros"] }
+sqlx = { version = "0.7", features = ["sqlite", "chrono", "uuid", "macros", "runtime-tokio-native-tls"] }
 # tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 axum = "0.6"
 tokio = { version = "1", features = ["full"] }

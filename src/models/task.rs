@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use sqlx::FromRow;
 
 #[derive(Deserialize)]
 pub struct Pagination {
@@ -24,7 +25,7 @@ pub struct TaskFilter {
     pub completed: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, FromRow)]
 pub struct Task {
     pub id: Uuid,
     pub title: String,

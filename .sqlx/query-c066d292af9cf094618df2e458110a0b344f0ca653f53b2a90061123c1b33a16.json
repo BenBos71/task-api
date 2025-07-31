@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n        SELECT id, title, completed, created_at\n        FROM tasks\n        WHERE id = ?\n        ",
+  "query": "\n        SELECT\n            id as \"id: Uuid\",\n            title,\n            completed,\n            created_at as \"created_at: chrono::DateTime<Utc>\"\n        FROM tasks\n        WHERE id = ?\n        ",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id: Uuid",
         "ordinal": 0,
         "type_info": "Text"
       },
@@ -19,7 +19,7 @@
         "type_info": "Bool"
       },
       {
-        "name": "created_at",
+        "name": "created_at: chrono::DateTime<Utc>",
         "ordinal": 3,
         "type_info": "Text"
       }
@@ -28,11 +28,11 @@
       "Right": 1
     },
     "nullable": [
-      true,
+      false,
       false,
       false,
       false
     ]
   },
-  "hash": "1a25be2d5014799eb6d84c7ba0373375f5d6a80ebbbcde10b0ffe23d2473ffa0"
+  "hash": "c066d292af9cf094618df2e458110a0b344f0ca653f53b2a90061123c1b33a16"
 }
